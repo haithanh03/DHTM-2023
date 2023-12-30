@@ -1,0 +1,261 @@
+/*Chương trình chiếu sáng Blinn-Phong (Phong sua doi) cho hình lập phương đơn vị, điều khiển quay bằng phím x, y, z, X, Y, Z.*/
+
+#include "Angel.h"  /* Angel.h là file tự phát triển (tác giả Prof. Angel), có chứa cả khai báo includes glew và freeglut*/
+#include "../Models/all_models.h"
+
+// remember to prototype
+void initGPUBuffers(GLuint vao, GLuint buffer, int size, vec4 vertices[], vec3 normals[], vec4 ambients[], vec4 diffuses[], vec4 speculars[]);
+void shaderSetup(void);
+void display(void);
+void keyboard(unsigned char key, int x, int y);
+
+
+using namespace std;
+
+GLuint program;
+mat4 model = mat4();
+
+GLfloat theta[3] = { 0, 0, 0 };
+GLfloat dr = 5;
+
+GLuint model_loc, projection_loc, view_loc, light_a_loc, light_d_loc, light_s_loc, light_pos_loc, light_shine_loc;
+
+// -------------Bước 1: Khai báo VAO, VBO-------------
+GLuint vao_tree, vao_train1, vao_train2, vao_train3, vao_table,
+vao_house1, vao_house2, vao_house3, vao_floor,
+vao_door1, vao_door2, vao_computer, vao_chair;
+
+GLuint buffer_tree, buffer_train1, buffer_train2, buffer_train3,
+buffer_table, buffer_house1, buffer_house2,
+buffer_house3, buffer_floor, buffer_door1, buffer_door2,
+buffer_computer, buffer_chair;
+
+
+void initGPUBuffers(GLuint vao, GLuint buffer, int size, vec4 vertices[], vec3 normals[], vec4 ambients[], vec4 diffuses[], vec4 speculars[])
+{
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ARRAY_BUFFER, buffer);
+
+	int partition1 = sizeof(vec4) * size;
+	int partition2 = partition1 + sizeof(vec3) * size;
+	int partition3 = partition2 + sizeof(vec4) * size;
+	int partition4 = partition3 + sizeof(vec4) * size;
+	int partition5 = partition4 + sizeof(vec4) * size;
+
+	glBufferData(GL_ARRAY_BUFFER, partition5, NULL, GL_STATIC_DRAW);
+
+	glBufferSubData(GL_ARRAY_BUFFER, 0, partition1, vertices);
+	glBufferSubData(GL_ARRAY_BUFFER, partition1, partition2 - partition1, normals);
+	glBufferSubData(GL_ARRAY_BUFFER, partition2, partition3 - partition2, ambients);
+	glBufferSubData(GL_ARRAY_BUFFER, partition3, partition4 - partition3, diffuses);
+	glBufferSubData(GL_ARRAY_BUFFER, partition4, partition5 - partition4, speculars);
+
+	// -----------------Định vị trong GPU buffer-----------------
+	// Khởi tạo thuộc tính vị trí đỉnh từ vertex shader
+	GLuint loc_vPosition = glGetAttribLocation(program, "vPosition");
+	glEnableVertexAttribArray(loc_vPosition);
+	glVertexAttribPointer(loc_vPosition, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
+
+	GLuint loc_vNormal = glGetAttribLocation(program, "vNormal");
+	glEnableVertexAttribArray(loc_vNormal);
+	glVertexAttribPointer(loc_vNormal, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(partition1));
+
+	GLuint loc_MaterialAmbient = glGetAttribLocation(program, "MaterialAmbient");
+	glEnableVertexAttribArray(loc_MaterialAmbient);
+	glVertexAttribPointer(loc_MaterialAmbient, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(partition2));
+
+	GLuint loc_MaterialDiffuse = glGetAttribLocation(program, "MaterialDiffuse");
+	glEnableVertexAttribArray(loc_MaterialDiffuse);
+	glVertexAttribPointer(loc_MaterialDiffuse, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(partition3));
+
+	GLuint loc_MaterialSpecular = glGetAttribLocation(program, "MaterialSpecular");
+	glEnableVertexAttribArray(loc_MaterialSpecular);
+	glVertexAttribPointer(loc_MaterialSpecular, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(partition4));
+	// --------------------------------------------------------------------
+}
+
+
+void shaderSetup(void)
+{
+	// Nạp các shader và sử dụng chương trình shader
+	program = InitShader("vshader1.glsl", "fshader1.glsl");   // hàm InitShader khai báo trong Angel.h
+	glUseProgram(program);
+
+	// Tạo VAO - vertex array object
+	glGenVertexArrays(1, &vao_tree);
+	glGenVertexArrays(1, &vao_train1);
+	glGenVertexArrays(1, &vao_train2);
+	glGenVertexArrays(1, &vao_train3);
+	glGenVertexArrays(1, &vao_table);
+	glGenVertexArrays(1, &vao_house1);
+	glGenVertexArrays(1, &vao_house2);
+	glGenVertexArrays(1, &vao_house3);
+	glGenVertexArrays(1, &vao_floor);
+	glGenVertexArrays(1, &vao_door1);
+	glGenVertexArrays(1, &vao_door2);
+	glGenVertexArrays(1, &vao_computer);
+	glGenVertexArrays(1, &vao_chair);
+
+	// Tạo buffer object
+	glGenBuffers(1, &buffer_tree);
+	glGenBuffers(1, &buffer_train1);
+	glGenBuffers(1, &buffer_train2);
+	glGenBuffers(1, &buffer_train3);
+	glGenBuffers(1, &buffer_table);
+	glGenBuffers(1, &buffer_house1);
+	glGenBuffers(1, &buffer_house2);
+	glGenBuffers(1, &buffer_house3);
+	glGenBuffers(1, &buffer_floor);
+	glGenBuffers(1, &buffer_door1);
+	glGenBuffers(1, &buffer_door2);
+	glGenBuffers(1, &buffer_computer);
+	glGenBuffers(1, &buffer_chair);
+
+	initGPUBuffers(vao_tree, buffer_tree, tree_size, tree_vertices, tree_normals, tree_ambients, tree_diffuses, tree_speculars);
+	initGPUBuffers(vao_train1, buffer_train1, train1_size, train1_vertices, train1_normals, train1_ambients, train1_diffuses, train1_speculars);
+	initGPUBuffers(vao_train2, buffer_train2, train2_size, train2_vertices, train2_normals, train2_ambients, train2_diffuses, train2_speculars);
+	initGPUBuffers(vao_train3, buffer_train3, train3_size, train3_vertices, train3_normals, train3_ambients, train3_diffuses, train3_speculars);
+	initGPUBuffers(vao_table, buffer_table, table_size, table_vertices, table_normals, table_ambients, table_diffuses, table_speculars);
+	initGPUBuffers(vao_house1, buffer_house1, house1_size, house1_vertices, house1_normals, house1_ambients, house1_diffuses, house1_speculars);
+	initGPUBuffers(vao_house2, buffer_house2, house2_size, house2_vertices, house2_normals, house2_ambients, house2_diffuses, house2_speculars);
+	initGPUBuffers(vao_house3, buffer_house3, house3_size, house3_vertices, house3_normals, house3_ambients, house3_diffuses, house3_speculars);
+	initGPUBuffers(vao_floor, buffer_floor, floor_size, floor_vertices, floor_normals, floor_ambients, floor_diffuses, floor_speculars);
+	initGPUBuffers(vao_door1, buffer_door1, door1_size, door1_vertices, door1_normals, door1_ambients, door1_diffuses, door1_speculars);
+	initGPUBuffers(vao_door2, buffer_door2, door2_size, door2_vertices, door2_normals, door2_ambients, door2_diffuses, door2_speculars);
+	initGPUBuffers(vao_computer, buffer_computer, computer_size, computer_vertices, computer_normals, computer_ambients, computer_diffuses, computer_speculars);
+	initGPUBuffers(vao_chair, buffer_chair, chair_size, chair_vertices, chair_normals, chair_ambients, chair_diffuses, chair_speculars);
+
+	light_a_loc = glGetUniformLocation(program, "AmbientLight");
+	light_d_loc = glGetUniformLocation(program, "DiffuseLight");
+	light_s_loc = glGetUniformLocation(program, "SpecularLight");
+	light_pos_loc = glGetUniformLocation(program, "LightPosition");
+	light_shine_loc = glGetUniformLocation(program, "Shininess");
+	model_loc = glGetUniformLocation(program, "Model");
+	projection_loc = glGetUniformLocation(program, "Projection");
+	view_loc = glGetUniformLocation(program, "View");
+
+	glEnable(GL_DEPTH_TEST);
+	glClearColor(1.0, 1.0, 1.0, 1.0);        /* Thiết lập màu trắng là màu xóa màn hình*/
+}
+
+void drawObject(GLuint vao, GLuint buffer, int numpoints) {
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ARRAY_BUFFER, buffer);
+	glUniformMatrix4fv(model_loc, 1, GL_TRUE, model);
+	glDrawArrays(GL_TRIANGLES, 0, numpoints);    /*Vẽ các tam giác*/
+}
+
+void displayToys() {
+
+}
+
+void displayCity() {
+	drawObject(vao_house1, buffer_house1, house1_size);
+	drawObject(vao_house2, buffer_house2, house2_size);
+	drawObject(vao_tree, buffer_tree, tree_size);
+	drawObject(vao_floor, buffer_floor, floor_size);
+	drawObject(vao_computer, buffer_computer, computer_size);
+	drawObject(vao_chair, buffer_computer, computer_size);
+	drawObject(vao_house3, buffer_house3, house3_size);
+	drawObject(vao_train1, buffer_train1, train1_size);
+	drawObject(vao_train2, buffer_train2, train2_size);
+	drawObject(vao_train3, buffer_train3, train3_size);
+}
+
+void display(void)
+{
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	// -------------------------Tạo mắt nhìn--------------------------
+	vec4 eye(0, 0, 100, 1);
+	vec4 at(0, 0, 0, 1);
+	vec4 up(0, 1, 0, 1);
+
+	mat4 view = LookAt(eye, at, up);
+	glUniformMatrix4fv(view_loc, 1, GL_TRUE, view);
+
+	// -------------------------Tạo khung nhìn--------------------------
+	mat4 projection = Frustum(-1, 1, -1, 1, 1, 4);
+	glUniformMatrix4fv(projection_loc, 1, GL_TRUE, projection);
+
+	// -------------------------Tạo chiếu sáng--------------------------
+	vec4 light_position(0.0, 0.0, 1.0, 0.0);
+	float material_shininess = 100.0;
+	vec4 light_ambient(0.2, 0.2, 0.2, 1.0);
+	vec4 light_diffuse(1.0, 1.0, 1.0, 1.0);
+	vec4 light_specular(1.0, 1.0, 1.0, 1.0);
+
+	glUniform4fv(light_a_loc, 1, light_ambient);
+	glUniform4fv(light_d_loc, 1, light_diffuse);
+	glUniform4fv(light_s_loc, 1, light_specular);
+	glUniform4fv(light_pos_loc, 1, light_position);
+	glUniform1f(light_shine_loc, material_shininess);
+
+	// ---------------------Vẽ các model--------------------
+	
+	// Vật tĩnh
+	drawObject(vao_train1, buffer_train1, train1_size);
+	drawObject(vao_train2, buffer_train2, train2_size);
+
+
+	// -----------------------------------------------------
+
+
+	glutSwapBuffers();
+}
+
+void keyboard(unsigned char key, int x, int y)
+{
+	// keyboard handler
+
+	switch (key) {
+	case 033:			// 033 is Escape key octal value
+		exit(1);		// quit program
+		break;
+	case 'x':
+		theta[0] += 10;
+		glutPostRedisplay();
+		break;
+	case 'X':
+		theta[0] -= 10;
+		glutPostRedisplay();
+		break;
+	case 'y':
+		theta[1] += 10;
+		glutPostRedisplay();
+		break;
+	case 'Y':
+		theta[1] -= 10;
+		glutPostRedisplay();
+		break;
+	case 'z':
+		theta[2] += 10;
+		glutPostRedisplay();
+		break;
+	case 'Z':
+		theta[2] -= 10;
+		glutPostRedisplay();
+		break;
+	}
+}
+
+
+int main(int argc, char** argv)
+{
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glutInitWindowSize(640, 640);
+	glutInitWindowPosition(100, 150);
+	glutCreateWindow("A Cube is rotated by keyboard and shaded");
+
+
+	glewInit();
+
+	shaderSetup();
+
+	glutDisplayFunc(display);
+	glutKeyboardFunc(keyboard);
+
+	glutMainLoop();
+	return 0;
+}

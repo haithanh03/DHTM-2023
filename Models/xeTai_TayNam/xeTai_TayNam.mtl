@@ -1,0 +1,12 @@
+# Blender MTL File: 'xeTai.blend'
+# Material Count: 1
+
+newmtl door_knob
+Ns 159.999981
+Ka 0.200000 0.200000 0.200000
+Kd 0.027321 0.030713 0.034340
+Ks 0.100000 0.100000 0.100000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 3
